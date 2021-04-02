@@ -140,7 +140,7 @@ def update_aai(devices):
     
     for ne in aai_current_devices.keys():
         if ne not in devices.keys():
-            disable_NEs.add(ne)
+            disable_NEs.append(ne)
 
     for id in devices:
         devices[id]['device_id'] = id
