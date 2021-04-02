@@ -160,7 +160,7 @@ def update_aai(devices):
     #Get current Devices (and Pnfs) in AAI
     try:
         current_devices = get_request(URL_GET_DEVICES)[1]['device']
-        current_devices = {node['device-id']:node['resource-version'] for node in current_devices}
+        current_devices = {node['device-id']:node for node in current_devices}
     except:
         current_devices = dict()
     
@@ -175,13 +175,15 @@ def update_aai(devices):
 
     for id in current_devices:
         create_device(id,current_devices[id],True)
-        create_pnf(id,current_devices[id],True)
+        create_pnf(id,current_devices[id],True
 
 
+if __name__ == "__main__":
+    update_aai(devices)
     
-fp = open('inventory.json', 'w+') 
-json.dump(aai_devices_data, fp)
-fp.close()
-print('Current Available Devices')
-print(aai_devices_data)
+    fp = open('inventory.json', 'w+') 
+    json.dump(aai_devices_data, fp)
+    fp.close()
+    print('Current Available Devices')
+    print(aai_devices_data)
 
