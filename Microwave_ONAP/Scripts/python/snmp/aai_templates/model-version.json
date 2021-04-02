@@ -1,4 +1,6 @@
 {
     "model-version-id" : "{{ model_version_id }}",
-    "model-description" : "Model for {{ vendor }} Microwave Equipment"
+    "model-name" : "{{ model_name }}",
+    "model-description" : "Model for {{ vendor }} Microwave Equipment",
+    "model-version" : "1.1.0"
 }
