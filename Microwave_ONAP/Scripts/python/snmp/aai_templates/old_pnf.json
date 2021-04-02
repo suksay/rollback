@@ -1,0 +1,5 @@
+{
+    "pnf-name" : "{{ device_id }}",
+    "operational-status" : "{{ operational_status }}",
+    "resource-version" : "{{resource_version}}"
+}
