@@ -117,73 +117,76 @@ for id,infos in db:
 
 
 ### Save Host in AAI Database ###
-aai_devices_data = dict()
-aai_devices_data['devices'] = list()
+current_devices = dict()
+current_devices['devices'] = list()
 
 devices_model = env.get_template('device.json')
-old_device_model = env.get_template('old_device.json')
 pnf_model = env.get_template('pnf.json')
-old_pnf_model = env.get_template('old_pnf.json')
 
 
 def update_aai(devices):
-
-    def create_device(device_id, device_info, isExist=False):
-        URL_DEVICE = URL_GET_DEVICES + '/device/{device_id}'.format(device_id = device_id)
-
-        if isExist == True :
-            device_data = json.loads(old_device_model.render(device_id=device_id, operational_status="down", resource_version=device_info))
-        else :
-            if device_info['vendor'] == 'huawei' :
-                device_data = json.loads(devices_model.render(device_id=device_id, device_name=device_info['hostname'], vendor=device_info['vendor'], ipv4=device_info['address'], description="We use model-customization-id for NE ID ", operational_status ="up", ne_id=device_info['ne_id'], model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_HUAWEI_MW_VERSION_ID_))
-            else:
-                device_data = json.loads(devices_model.render(device_id=device_id, device_name=device_info['hostname'], vendor=device_info['vendor'], ipv4=device_info['address'], description="We use model-customization-id for NE ID ", operational_status ="up", model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_NEC_MW_VERSION_ID_))
-
-        req_device = put_request(URL_DEVICE, device_data)
-
-    def create_pnf(device_id, device_info, isExist=False):
-        URL_DEVICE = URL_GET_DEVICES + '/device/{device_id}'.format(device_id = device_id)
-        URL_PNF = URL_GET_PNFS + '/pnf/{pnf_name}'.format(pnf_name = device_id )
-
-        if isExist == True :
-            pnf_data = json.loads(old_pnf_model.render(device_id=device_id, operational_status="down", resource_version=device_info))
-        else :
-            if device_info['vendor'] == 'huawei' :
-                pnf_data = json.loads(pnf_model.render(device_id=device_id, device_name=device_info['hostname'], selflink=URL_DEVICE, equip_type="microwave", vendor=device_info['vendor'], operational_status ="up", model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_HUAWEI_MW_VERSION_ID_))
-            else:
-                pnf_data = json.loads(pnf_model.render(device_id=device_id, device_name=device_info['hostname'], selflink=URL_DEVICE, equip_type="microwave", vendor=device_info['vendor'], operational_status ="up", model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_NEC_MW_VERSION_ID_))
-
-        req_pnf = put_request(URL_PNF, pnf_data)
-
-    
+    #Desable NE in AAI 
+    disable_NEs = list()
 
     #Get current Devices (and Pnfs) in AAI
     try:
-        current_devices = get_request(URL_GET_DEVICES)[1]['device']
-        current_devices = {node['device-id']:node for node in current_devices}
+        aai_current_devices = get_request(URL_GET_DEVICES)[1]['device']
+        aai_current_devices = {node['device-id']:node for node in aai_current_devices}
+        aai_current_pnfs = get_request(URL_GET_PNFS)[1]['pnf']
+        aai_current_pnfs = {node['pnf-name']:node for node in aai_current_pnfs}
     except:
-        current_devices = dict()
+        aai_current_devices = dict()
+        aai_current_pnfs = dict()
     
+    for ne in aai_current_devices.keys():
+        if ne not in devices.keys():
+            disable_NEs.add(ne)
+
     for id in devices:
         devices[id]['device_id'] = id
-        aai_devices_data['devices'].append(devices[id])
+        current_devices['devices'].append(devices[id])
 
-        if id in current_devices.keys() :
-            del(current_devices[id])
-            create_device(id, devices[id])
-            create_pnf(id, devices[id])
+        #-----  Device and  PNF associate ------#
+        URL_DEVICE = URL_GET_DEVICES + '/device/{device_id}'.format(device_id = id )
+        URL_PNF = URL_GET_PNFS + '/pnf/{pnf_name}'.format(pnf_name = id )
 
-    for id in current_devices:
-        create_device(id,current_devices[id],True)
-        create_pnf(id,current_devices[id],True
+        if devices[id]['vendor'] == 'huawei':
+            device_data = json.loads(devices_model.render(device_id=id, device_name=devices[id]['hostname'], vendor=devices[id]['vendor'], ipv4=devices[id]['address'], description="We use model-customization-id for NE ID ", operational_status ="active", ne_id=devices[id]['ne_id'], model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_HUAWEI_MW_VERSION_ID_))
+            pnf_data = json.loads(pnf_model.render(device_id=id, device_name=devices[id]['hostname'], selflink=URL_DEVICE, equip_type="microwave", vendor=devices[id]['vendor'], operational_status ="active", model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_HUAWEI_MW_VERSION_ID_))       
+        else :
+            device_data = json.loads(devices_model.render(device_id=id, device_name=devices[id]['hostname'], vendor=devices[id]['vendor'], ipv4=devices[id]['address'], description="We use model-customization-id for NE ID ", operational_status ="active", model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_NEC_MW_VERSION_ID_))
+            pnf_data = json.loads(pnf_model.render(device_id=id, device_name=devices[id]['hostname'], selflink=URL_DEVICE, equip_type="microwave", vendor=devices[id]['vendor'], operational_status ="active", model_invariant_id=_MW_INVARIANT_ID_, model_version_id=_NEC_MW_VERSION_ID_))
+
+        if id in aai_current_devices.keys():
+            device_data["resource-version"] = aai_current_devices[id]["resource-version"]
+            pnf_data["resource-version"] = aai_current_pnfs[id]["resource-version"]
+
+        #Requests
+        req_device = put_request(URL_DEVICE, device_data)
+        req_pnf = put_request(URL_PNF, pnf_data)
+
+    for id in disable_NEs:  
+        #-----  Device and  PNF associate ------#
+        URL_DEVICE = URL_GET_DEVICES + '/device/{device_id}'.format(device_id = id )
+        URL_PNF = URL_GET_PNFS + '/pnf/{pnf_name}'.format(pnf_name = id )
+
+        device_data = aai_current_devices[id]
+        device_data['operational-status'] = "disable"
+        pnf_data = aai_current_pnfs[id]
+        pnf_data['operational-status'] = "disable"
+
+        #Requests
+        req_device = put_request(URL_DEVICE, device_data)
+        req_pnf = put_request(URL_PNF, pnf_data)
+
 
 
 if __name__ == "__main__":
     update_aai(devices)
-    
+
     fp = open('inventory.json', 'w+') 
-    json.dump(aai_devices_data, fp)
+    json.dump(current_devices, fp)
     fp.close()
     print('Current Available Devices')
-    print(aai_devices_data)
+    print(current_devices)
 
